@@ -80,6 +80,12 @@ export class Game {
         requestAnimationFrame((time) => this.run(time));
     }
 
+    public resize(width: number, height: number) {
+        const targetHeight = 240;
+        const targetWidth = Math.floor(targetHeight * (width / height));
+        this.renderer.resize(targetWidth, targetHeight);
+    }
+
     private startLevel(index: number) {
         this.world = new World(index);
         this.miners = [];
@@ -129,8 +135,8 @@ export class Game {
             // Camera Pan
             // Camera Pan speed scales with zoom
             const panSpeed = Math.floor(8 * this.zoomFactor);
-            const viewW = Renderer.VIEW_WIDTH * this.zoomFactor;
-            const viewH = Renderer.VIEW_HEIGHT * this.zoomFactor;
+            const viewW = this.renderer.viewWidth * this.zoomFactor;
+            const viewH = this.renderer.viewHeight * this.zoomFactor;
 
             if (this.input.isKeyPressed('ArrowLeft') || this.input.isKeyPressed('KeyA')) this.cameraX -= panSpeed;
             if (this.input.isKeyPressed('ArrowRight') || this.input.isKeyPressed('KeyD')) this.cameraX += panSpeed;
@@ -155,8 +161,8 @@ export class Game {
                 this.zoomFactor = Math.max(0.5, Math.min(4.0, this.zoomFactor));
                 
                 // Adjust camera to zoom relative to center of view
-                const dw = Renderer.VIEW_WIDTH * (oldZoom - this.zoomFactor);
-                const dh = Renderer.VIEW_HEIGHT * (oldZoom - this.zoomFactor);
+                const dw = this.renderer.viewWidth * (oldZoom - this.zoomFactor);
+                const dh = this.renderer.viewHeight * (oldZoom - this.zoomFactor);
                 this.cameraX += dw / 2;
                 this.cameraY += dh / 2;
 
@@ -168,8 +174,8 @@ export class Game {
     }
 
     private handleUserMining() {
-        const currentMouseWorldX = Math.floor(this.input.xMouse * Renderer.VIEW_WIDTH * this.zoomFactor) + this.cameraX;
-        const currentMouseWorldY = Math.floor(this.input.yMouse * Renderer.VIEW_HEIGHT * this.zoomFactor) + this.cameraY;
+        const currentMouseWorldX = Math.floor(this.input.xMouse * this.renderer.viewWidth * this.zoomFactor) + this.cameraX;
+        const currentMouseWorldY = Math.floor(this.input.yMouse * this.renderer.viewHeight * this.zoomFactor) + this.cameraY;
 
         if (this.input.mouseButton > 0) {
             const dx = currentMouseWorldX - this.lastMouseWorldX;

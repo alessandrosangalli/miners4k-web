@@ -1,26 +1,35 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Miners4k: Unearthed</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/src/style.css">
-  </head>
-  <body>
-    <div id="app">
-      <div id="ui-layer">
-        <div class="hud-top">
-          <div class="hud-item" id="hud-gold">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Miners4k: Unearthed</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+
+<body>
+  <div id="app">
+    <div id="ui-layer">
+      <div class="hud-bar-container">
+        <div class="hud-bar">
+          <div class="hud-item hud-gold">
             <span class="hud-icon">💰</span>
             <span id="ui-score">0 / 100</span>
           </div>
-          <div class="hud-item" id="hud-time">
+          <div class="hud-item hud-time">
             <span class="hud-icon">⏳</span>
             <span id="ui-time">200s</span>
           </div>
+          <div class="hud-item hud-miners">
+            <span class="hud-icon">👷</span>
+            <span id="ui-miners">50</span>
+          </div>
+          <div class="hud-divider"></div>
           <div class="speed-btns">
             <button class="speed-btn active" data-speed="1">1x</button>
             <button class="speed-btn" data-speed="2">2x</button>
@@ -28,32 +37,28 @@
             <button class="speed-btn" data-speed="5">5x</button>
           </div>
         </div>
-        <div class="hud-bottom">
-          <div class="hud-item" id="hud-miners">
-             <span class="hud-icon">👷</span>
-             <span id="ui-miners">50</span>
+      </div>
+      <div id="ui-menu" class="overlay">
+        <div class="menu-content">
+          <h1 class="glitch-text" data-text="MINERS 4K">MINERS 4K</h1>
+          <p>Unearthed</p>
+          <div class="start-prompt">CLICK TO START</div>
+          <div class="controls-guide">
+            <div class="control-item"><span>ARROWS</span> Move Camera</div>
+            <div class="control-item"><span>WHEEL</span> Zoom In/Out</div>
+            <div class="control-item"><span>L-CLICK</span> Dig Dirt</div>
+            <div class="control-item"><span>R-CLICK</span> Build Dirt</div>
+          </div>
+          <div class="credits-footer">
+            A Fan-Made Modern Remake of the 2005 Java 4K entry.<br>
+            Original Game Idea & Design by <strong>Markus "Notch" Persson</strong>.
           </div>
         </div>
-        <div id="ui-menu" class="overlay">
-           <div class="menu-content">
-             <h1 class="glitch-text" data-text="MINERS 4K">MINERS 4K</h1>
-             <p>Unearthed • A Tribute to Notch</p>
-             <div class="start-prompt">CLICK TO START</div>
-             <div class="controls-guide">
-               <div class="control-item"><span>ARROWS</span> Move Camera</div>
-               <div class="control-item"><span>WHEEL</span> Zoom In/Out</div>
-               <div class="control-item"><span>L-CLICK</span> Dig Dirt</div>
-               <div class="control-item"><span>R-CLICK</span> Build Dirt</div>
-             </div>
-             <div class="credits-footer">
-                A Fan-Made Modern Remake of the 2005 Java 4K entry.<br>
-                Original Game Idea & Design by <strong>Markus "Notch" Persson</strong>.
-             </div>
-           </div>
-        </div>
       </div>
-      <canvas id="gameCanvas" width="1024" height="768"></canvas>
     </div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+    <canvas id="gameCanvas" width="1024" height="768"></canvas>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
 </html>

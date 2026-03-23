@@ -6,8 +6,8 @@ import { FloatingText } from '../entities/FloatingText';
 export enum GameState { MENU = 0, PLAYING = 1, PAUSED = 2, GAME_OVER = 3 }
 
 export class Renderer {
-    public static readonly VIEW_WIDTH = 320;
-    public static readonly VIEW_HEIGHT = 240;
+    public viewWidth: number = 320;
+    public viewHeight: number = 240;
 
     private offscreenCanvas: HTMLCanvasElement;
     private offscreenCtx: CanvasRenderingContext2D;
@@ -17,34 +17,43 @@ export class Renderer {
 
     constructor() {
         this.offscreenCanvas = document.createElement('canvas');
-        this.offscreenCanvas.width = Renderer.VIEW_WIDTH;
-        this.offscreenCanvas.height = Renderer.VIEW_HEIGHT;
-        this.offscreenCtx = this.offscreenCanvas.getContext('2d')!;
-        this.imageData = this.offscreenCtx.createImageData(Renderer.VIEW_WIDTH, Renderer.VIEW_HEIGHT);
+        this.offscreenCanvas.width = this.viewWidth;
+        this.offscreenCanvas.height = this.viewHeight;
+        this.offscreenCtx = this.offscreenCanvas.getContext('2d', { willReadFrequently: true })!;
+        this.imageData = this.offscreenCtx.createImageData(this.viewWidth, this.viewHeight);
+        this.pixels = this.imageData.data;
+    }
+
+    public resize(width: number, height: number) {
+        this.viewWidth = width;
+        this.viewHeight = height;
+        this.offscreenCanvas.width = this.viewWidth;
+        this.offscreenCanvas.height = this.viewHeight;
+        this.imageData = this.offscreenCtx.createImageData(this.viewWidth, this.viewHeight);
         this.pixels = this.imageData.data;
     }
 
     public render(world: World, miners: Miner[], particles: Particle[], floatingTexts: FloatingText[], cameraX: number, cameraY: number, zoomFactor: number = 1.0): void {
         this.renderSky(cameraX, cameraY, zoomFactor);
         const worldPixels = world.pixels;
-        const viewW = Renderer.VIEW_WIDTH * zoomFactor;
-        const viewH = Renderer.VIEW_HEIGHT * zoomFactor;
+        const viewW = this.viewWidth * zoomFactor;
+        const viewH = this.viewHeight * zoomFactor;
 
-        // 1. Pre-calculate Light Map (320x240)
-        const lightMap = new Float32Array(Renderer.VIEW_WIDTH * Renderer.VIEW_HEIGHT);
+        // 1. Pre-calculate Light Map
+        const lightMap = new Float32Array(this.viewWidth * this.viewHeight);
         
         // Ambient & Sky Light Pass
-        for (let y = 0; y < Renderer.VIEW_HEIGHT; y++) {
+        for (let y = 0; y < this.viewHeight; y++) {
             const wy = cameraY + y * zoomFactor;
             const ratio = Math.max(0, Math.min(1.0, wy / (world.height * 0.8)));
             const baseBrightness = 1.0 * (1.0 - ratio) + 0.4 * ratio;
             
             // Vignette for depth feel
-            const dy = (y / Renderer.VIEW_HEIGHT) - 0.5;
-            for (let x = 0; x < Renderer.VIEW_WIDTH; x++) {
-                const dx = (x / Renderer.VIEW_WIDTH) - 0.5;
+            const dy = (y / this.viewHeight) - 0.5;
+            for (let x = 0; x < this.viewWidth; x++) {
+                const dx = (x / this.viewWidth) - 0.5;
                 const vign = 1.0 - (dx * dx + dy * dy) * 0.4;
-                lightMap[x + y * Renderer.VIEW_WIDTH] = baseBrightness * vign;
+                lightMap[x + y * this.viewWidth] = baseBrightness * vign;
             }
         }
         // Miner Headlamp Pass (Dynamic Directional Lights)
@@ -61,7 +70,7 @@ export class Renderer {
             for (let dy = -R; dy <= R; dy++) {
                 for (let dx = -R; dx <= R; dx++) {
                     let lx = Math.floor(mx + dx), ly = Math.floor(my + dy);
-                    if (lx >= 0 && ly >= 0 && lx < Renderer.VIEW_WIDTH && ly < Renderer.VIEW_HEIGHT) {
+                    if (lx >= 0 && ly >= 0 && lx < this.viewWidth && ly < this.viewHeight) {
                         let dist = Math.sqrt(dx * dx + dy * dy);
                         if (dist < scaledRadius) {
                             const forwardValue = dx * m.direction; 
@@ -80,7 +89,7 @@ export class Renderer {
                             // Much lower intensity multiplier (0.6 instead of 1.5)
                             let light = (1.0 - relDist) * angleFactor * 0.6;
                             
-                            const lidx = lx + ly * Renderer.VIEW_WIDTH;
+                            const lidx = lx + ly * this.viewWidth;
                             lightMap[lidx] += light;
                             
                             // Cap brightness to avoid "burning" out the pixels
@@ -92,12 +101,12 @@ export class Renderer {
         }
 
         // 2. Pass 1: Draw Terrain
-        for (let y = 0; y < Renderer.VIEW_HEIGHT; y++) {
+        for (let y = 0; y < this.viewHeight; y++) {
             const wy = Math.floor(cameraY + y * zoomFactor);
-            for (let x = 0; x < Renderer.VIEW_WIDTH; x++) {
+            for (let x = 0; x < this.viewWidth; x++) {
                 const wx = Math.floor(cameraX + x * zoomFactor);
-                const idx = (x + y * Renderer.VIEW_WIDTH) * 4;
-                const brightness = lightMap[x + y * Renderer.VIEW_WIDTH];
+                const idx = (x + y * this.viewWidth) * 4;
+                const brightness = lightMap[x + y * this.viewWidth];
 
                 if (wx >= 0 && wy >= 0 && wx < world.width && wy < world.height) {
                     const col = worldPixels[wx | (wy << 10)];
@@ -174,9 +183,9 @@ export class Renderer {
 
                         const lX = Math.floor((wx - cameraX) / zoomFactor);
                         const lY = Math.floor((wy - cameraY) / zoomFactor);
-                        if (lX >= 0 && lX < Renderer.VIEW_WIDTH && lY >= 0 && lY < Renderer.VIEW_HEIGHT) {
-                            const br = lightMap[lX + lY * Renderer.VIEW_WIDTH];
-                            const idx = (lX + lY * Renderer.VIEW_WIDTH) * 4;
+                        if (lX >= 0 && lX < this.viewWidth && lY >= 0 && lY < this.viewHeight) {
+                            const br = lightMap[lX + lY * this.viewWidth];
+                            const idx = (lX + lY * this.viewWidth) * 4;
                             this.pixels[idx] = ((mCol >> 16) & 0xff) * br;
                             this.pixels[idx + 1] = ((mCol >> 8) & 0xff) * br;
                             this.pixels[idx + 2] = (mCol & 0xff) * br;
@@ -191,10 +200,10 @@ export class Renderer {
         for (const p of particles) {
             const sx = Math.floor((p.x - cameraX) / zoomFactor);
             const sy = Math.floor((p.y - cameraY) / zoomFactor);
-            if (sx >= 0 && sy >= 0 && sx < Renderer.VIEW_WIDTH && sy < Renderer.VIEW_HEIGHT) {
-                const idx = (sx + sy * Renderer.VIEW_WIDTH) * 4;
+            if (sx >= 0 && sy >= 0 && sx < this.viewWidth && sy < this.viewHeight) {
+                const idx = (sx + sy * this.viewWidth) * 4;
                 const alpha = p.getAlpha();
-                const lidx = sx + sy * Renderer.VIEW_WIDTH;
+                const lidx = sx + sy * this.viewWidth;
                 const br = lightMap[lidx];
                 
                 // Emisivity check
@@ -234,7 +243,7 @@ export class Renderer {
         for (const ft of floatingTexts) {
             const sx = Math.floor((ft.x - cameraX) / zoomFactor);
             const sy = Math.floor((ft.y - cameraY) / zoomFactor);
-            if (sx >= -50 && sy >= -50 && sx < Renderer.VIEW_WIDTH + 50 && sy < Renderer.VIEW_HEIGHT + 50) {
+            if (sx >= -50 && sy >= -50 && sx < this.viewWidth + 50 && sy < this.viewHeight + 50) {
                this.offscreenCtx.fillStyle = ft.color;
                this.offscreenCtx.globalAlpha = ft.getOpacity();
                this.offscreenCtx.fillText(ft.text, sx, sy);
@@ -248,7 +257,7 @@ export class Renderer {
         const skyBaseR = 100, skyBaseG = 180, skyBaseB = 255; // Vibrant Sky Blue
         const horizonR = 210, horizonG = 240, horizonB = 255; // Atmospheric Horizon
 
-        for (let y = 0; y < Renderer.VIEW_HEIGHT; y++) {
+        for (let y = 0; y < this.viewHeight; y++) {
             const wy = cameraY + y * zoomFactor;
             // Power curve for more sky at the top
             const ratio = Math.pow(Math.max(0, Math.min(1.0, wy / 1100.0)), 0.8);
@@ -258,8 +267,8 @@ export class Renderer {
             const g = Math.floor(skyBaseG * (1 - ratio) + horizonG * ratio);
             const b = Math.floor(skyBaseB * (1 - ratio) + horizonB * ratio);
             
-            for (let x = 0; x < Renderer.VIEW_WIDTH; x++) {
-                const idx = (x + y * Renderer.VIEW_WIDTH) * 4;
+            for (let x = 0; x < this.viewWidth; x++) {
+                const idx = (x + y * this.viewWidth) * 4;
                 const wx = (cameraX + x * zoomFactor); 
                 
                 let cr = r, cg = g, cb = b;
