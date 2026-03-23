@@ -6,7 +6,9 @@ export class Miner {
     public jumpVelocity: number = -1; // -1 = on ground, 16 = max jump
     public fallDistance: number = 0;
     public carryingGold: boolean = false;
-    private deathAnimationFrame: number = 0; // 0 if alive, 1-16 for death animation
+    public memoryX: number | null = null;
+    public memoryY: number | null = null;
+    private deathAnimationFrame: number = 0; 
 
     constructor(x: number, y: number, direction: number, initialFallDistance: number) {
         this.x = x;

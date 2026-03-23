@@ -1,9 +1,9 @@
 ---
 description: Build and start the development server for Miners4k
 ---
-Este roteiro vai instalar as dependências necessárias e abrir o servidor local (Vite) na porta padrão (geralmente 5173).
+// turbo-all
 
-// turbo
+Este roteiro vai instalar as dependências necessárias e abrir o servidor local (Vite) na porta padrão (geralmente 5173).
 1. Instalar as dependências do projeto (npm install)
 ```bash
 npm install

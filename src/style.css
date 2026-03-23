@@ -239,3 +239,17 @@ html, body {
   from { color: var(--color-time); transform: scale(1); }
   to { color: #ff0000; transform: scale(1.1); box-shadow: 0 0 20px rgba(255, 0, 0, 0.5); }
 }
+
+.credits-footer {
+  margin-top: 40px;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.credits-footer strong {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 700;
+}
+

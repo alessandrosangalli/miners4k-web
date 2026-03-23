@@ -1,6 +1,6 @@
 # Miners4k Improvement Roadmap
 
-> **Projeto**: Miners4k Modernized  
+> **Projeto**: Miners4k: Unearthed (A Tribute to Notch)
 > **Autor Original**: Markus "Notch" Persson (2005)  
 > **Refatoração e Modernização**: Alessandro + Antigravity AI  
 > **Data de Início**: 22 de Março de 2026  

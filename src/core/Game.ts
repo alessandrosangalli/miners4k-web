@@ -26,6 +26,10 @@ export class Game {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
 
+    public globalDigTargetX: number = 0;
+    public globalDigTargetY: number = 0;
+    public globalDigTargetTime: number = 0;
+
     private lastMouseWorldX: number = 0;
     private lastMouseWorldY: number = 0;
     private gameSpeed: number = 1;
@@ -128,10 +132,10 @@ export class Game {
             const viewW = Renderer.VIEW_WIDTH * this.zoomFactor;
             const viewH = Renderer.VIEW_HEIGHT * this.zoomFactor;
 
-            if (this.input.isKeyPressed('ArrowLeft')) this.cameraX -= panSpeed;
-            if (this.input.isKeyPressed('ArrowRight')) this.cameraX += panSpeed;
-            if (this.input.isKeyPressed('ArrowUp')) this.cameraY -= panSpeed;
-            if (this.input.isKeyPressed('ArrowDown')) this.cameraY += panSpeed;
+            if (this.input.isKeyPressed('ArrowLeft') || this.input.isKeyPressed('KeyA')) this.cameraX -= panSpeed;
+            if (this.input.isKeyPressed('ArrowRight') || this.input.isKeyPressed('KeyD')) this.cameraX += panSpeed;
+            if (this.input.isKeyPressed('ArrowUp') || this.input.isKeyPressed('KeyW')) this.cameraY -= panSpeed;
+            if (this.input.isKeyPressed('ArrowDown') || this.input.isKeyPressed('KeyS')) this.cameraY += panSpeed;
 
             // Clamp camera to world bounds (with some margin for centering)
             const minX = (viewW > this.world.width) ? (this.world.width - viewW) / 2 : 0;
@@ -184,7 +188,7 @@ export class Game {
                             const px = mx + xx;
                             const py = my + yy;
                             if (px >= 0 && py >= 0 && px < 1024 && py < 2048) {
-                                if (this.input.mouseButton === 1 && !this.input.isKeyPressed('ControlLeft') && !this.input.isKeyPressed('ControlRight')) {
+                                if (this.input.mouseButton === 1) {
                                     const mat = this.world.getMaterial(px, py);
                                     
                                     // Professional check: DIRT and GRASS are destructible
@@ -200,7 +204,7 @@ export class Game {
                                             this.spawnParticles(px, py, 1, 0xFFFFFFCC, 2.0); 
                                         }
                                     }
-                                } else if (this.input.mouseButton === 3 || this.input.isKeyPressed('ControlLeft') || this.input.isKeyPressed('ControlRight')) {
+                                } else if (this.input.mouseButton === 3) {
                                     // Build DIRT (Right Click)
                                     if (this.world.getMaterial(px, py) === Material.AIR) {
                                         let br = 1.6 - (Math.random() - 0.5) * Math.random() * Math.random() * 0.6;
@@ -217,6 +221,11 @@ export class Game {
                 }
             }
             if (dugThisFrame) {
+                // Save the digging location to attract miners
+                this.globalDigTargetX = currentMouseWorldX;
+                this.globalDigTargetY = currentMouseWorldY;
+                this.globalDigTargetTime = performance.now();
+
                 // Rhythmic Sound Throttling (Phase 3 Fix from original Java)
                 const now = performance.now();
                 if (now - (this as any).lastDigSoundTime > 80 || !(this as any).lastDigSoundTime) {
@@ -224,6 +233,7 @@ export class Game {
                     (this as any).lastDigSoundTime = now;
                 }
             }
+
         }
         this.lastMouseWorldX = currentMouseWorldX;
         this.lastMouseWorldY = currentMouseWorldY;
@@ -380,16 +390,32 @@ export class Game {
                         }
                     }
 
-                    // --- SMART AI LOGIC V2 ---
+                    // --- SMART AI LOGIC V3 ---
                     let turnProb = hit ? 0.1 : 0.00025;
 
                     if (m.carryingGold) {
                         // Se estiver com ouro, NÃO vira aleatoriamente em terreno plano.
-                        // Ele já virou 180 graus no momento em que pegou a pepita.
-                        // Ele só virará de novo se der de cara com uma parede intransponível.
                         turnProb = hit ? 0.1 : 0.0;
                     } else {
-                        // Se não tem ouro, usa aquele "olfato" sutil.
+                        let foundGoldNearby = false;
+                        
+                        // 1. Alert System: Segue companheiros que vêm com ouro
+                        // Se não temos ouro e cruzamos com alguém com ouro, vamos na direção de onde eles vieram!
+                        for (const other of this.miners) {
+                            if (other.isAlive() && other.carryingGold && other !== m) {
+                                const dist = Math.abs(m.x - other.x) + Math.abs(m.y - other.y);
+                                if (dist < 12) { // Distância de contato
+                                    const dirTowardsGold = -other.direction;
+                                    if (m.direction !== dirTowardsGold) {
+                                        m.direction = dirTowardsGold; // Começa a ir para dentro da mina
+                                    }
+                                    m.memoryY = 200; // Usa memoryY como timer de foco
+                                    break;
+                                }
+                            }
+                        }
+
+                        // 2. Olfato para o ouro bruto local
                         for (let i = 0; i < 3; i++) {
                             const lookDist = 5 + Math.random() * 25;
                             const lookYOffset = (Math.random() - 0.5) * 10;
@@ -398,11 +424,27 @@ export class Game {
                             
                             if (aheadMat === Material.GOLD_RAW) {
                                 turnProb = hit ? 0.02 : 0.00001;
+                                foundGoldNearby = true;
                                 break;
                             } else if (behindMat === Material.GOLD_RAW) {
-                                turnProb = hit ? 0.2 : 0.02;
+                                turnProb = hit ? 0.2 : 0.05;
+                                foundGoldNearby = true;
                                 break;
                             }
+                        }
+
+                        // 3. Temporizador de Foco (para não virar à toa enquanto segue a trilha)
+                        if (!foundGoldNearby && m.memoryY !== null && m.memoryY > 0) {
+                            m.memoryY--;
+                            if (!hit) {
+                                turnProb = 0.0; // Foco total, segue reto pelo túnel
+                            } else {
+                                turnProb = 0.1; // Bateu em algo no túnel, deve ter chance de virar e adaptar
+                                m.memoryY -= 10; // Bater desgasta a memória
+                            }
+                            if (m.memoryY <= 0) m.memoryY = null;
+                        } else if (!foundGoldNearby && m.memoryY !== null && m.memoryY <= 0) {
+                            m.memoryY = null;
                         }
                     }
 
@@ -422,6 +464,8 @@ export class Game {
         if (m.carryingGold && m.y <= this.world.getHeightAt(m.x) && (m.x === 8 + 32 || m.x === this.world.width - 8 - 32)) {
             this.score++;
             m.carryingGold = false;
+            m.memoryX = null; // Esquece o ouro antigo!
+            m.memoryY = null;
             this.dropGoldPixels(m.x, m.y - 5);
             this.spawnParticles(m.x, m.y - 4, 8, World.COLOR_GOLD_PIXEL);
             this.sound.play('deposit');
@@ -452,7 +496,11 @@ export class Game {
                                 }
                             }
                             m.carryingGold = true;
+                            // Grava as coordenadas deste ouro na memória do minerador!
+                            m.memoryX = px;
+                            m.memoryY = py;
                             m.direction *= -1;
+
                             // LOTS OF SPARKS ON COLLECTION
                             this.spawnParticles(px, py, 12, World.COLOR_GOLD_PIXEL, 1.5);
                             this.spawnParticles(px, py, 8, 0xFFFFFFCC, 2.5); // Fast white sparks

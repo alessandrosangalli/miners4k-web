@@ -8,6 +8,10 @@ export class InputHandler {
     constructor(canvas: HTMLCanvasElement) {
         window.addEventListener('keydown', (e) => this.keys.add(e.code));
         window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+        window.addEventListener('blur', () => {
+            this.keys.clear();
+            this.mouseButton = 0;
+        });
 
         const updateMousePosition = (e: MouseEvent) => {
             const rect = canvas.getBoundingClientRect();
@@ -20,8 +24,7 @@ export class InputHandler {
 
         canvas.addEventListener('mousedown', (e) => {
             updateMousePosition(e);
-            // Translate right click or Ctrl+Click to 3 (erase/dig)
-            this.mouseButton = e.button === 2 || e.ctrlKey ? 3 : 1;
+            this.mouseButton = e.button === 2 ? 3 : 1;
         });
 
         window.addEventListener('mouseup', () => {
