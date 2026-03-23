@@ -55,8 +55,16 @@
           </div>
         </div>
       </div>
+      <div id="screen-fade"></div>
+      <div id="level-complete-overlay" class="level-complete-overlay">
+         <h2 id="level-title" class="level-title">LEVEL 1 COMPLETE!</h2>
+         <div id="level-stats" class="level-stats">
+            <!-- Dynamic stats go here -->
+         </div>
+         <button class="btn-continue" id="btn-next-level">NEXT LEVEL</button>
+      </div>
     </div>
-    <canvas id="gameCanvas" width="1024" height="768"></canvas>
+    <canvas id="gameCanvas"></canvas>
   </div>
   <script type="module" src="/src/main.ts"></script>
 </body>

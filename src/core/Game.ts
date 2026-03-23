@@ -73,6 +73,23 @@ export class Game {
             });
         });
 
+        // Next Level Button
+        document.getElementById('btn-next-level')!.addEventListener('click', () => {
+            const overlay = document.getElementById('level-complete-overlay')!;
+            overlay.classList.remove('active');
+            
+            const fade = document.getElementById('screen-fade')!;
+            fade.style.opacity = '1';
+            
+            setTimeout(() => {
+                this.startLevel(this.currentLevel);
+                setTimeout(() => {
+                    fade.style.opacity = '0';
+                    this.state = GameState.PLAYING;
+                }, 500);
+            }, 1000); // Wait 1s for fade to black
+        });
+
         this.startLevel(0);
         this.state = GameState.MENU;
         
@@ -300,19 +317,37 @@ export class Game {
 
         // Win condition
         if (this.score >= this.world.targetGold) {
-            this.state = GameState.MENU;
-            if (this.currentLevel < 6) this.currentLevel++;
-            this.startLevel(this.currentLevel);
-            this.uiMenu.querySelector('p')!.innerText = "Level Complete! Click to continue...";
-            this.uiMenu.classList.remove('hidden');
+            this.state = GameState.PAUSED;
+            
+            const overlay = document.getElementById('level-complete-overlay')!;
+            
+            document.getElementById('level-title')!.innerText = `LEVEL ${this.currentLevel + 1} COMPLETE!`;
+            document.getElementById('level-title')!.style.color = "var(--color-gold)";
+            document.getElementById('level-stats')!.innerHTML = `Level Completed in: <strong id="stat-time" style="color: var(--color-time);">${passedTimeSec}s</strong>`;
+            
+            if (this.currentLevel < 6) {
+                this.currentLevel++;
+                document.getElementById('btn-next-level')!.innerText = "NEXT LEVEL";
+            } else {
+                document.getElementById('btn-next-level')!.innerText = "YOU WIN! REPLAY";
+                this.currentLevel = 0; // Reset entire game if they won level 6
+            }
+            
+            overlay.classList.add('active');
         }
 
         // Loss condition
-        if (this.minersAlive <= 0 || timeLeft <= 0 || this.input.isKeyPressed('KeyK')) {
-            this.state = GameState.MENU;
-            this.startLevel(this.currentLevel); // Reset
-            this.uiMenu.querySelector('p')!.innerText = "Game Over! Click to retry...";
-            this.uiMenu.classList.remove('hidden');
+        else if (this.minersAlive <= 0 || timeLeft <= 0 || this.input.isKeyPressed('KeyK')) {
+            this.state = GameState.PAUSED;
+            
+            const overlay = document.getElementById('level-complete-overlay')!;
+            
+            document.getElementById('level-title')!.innerText = "GAME OVER";
+            document.getElementById('level-title')!.style.color = "#FF3333";
+            document.getElementById('level-stats')!.innerHTML = `You lost your miners or ran out of time.<br><br>Objective: <strong>${this.world.targetGold} Gold</strong>`;
+            document.getElementById('btn-next-level')!.innerText = "TRY AGAIN";
+            
+            overlay.classList.add('active');
         }
     }
 
