@@ -4,14 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Miners4k Web Improved</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/src/style.css">
   </head>
   <body>
     <div id="app">
       <div id="ui-layer">
         <div class="hud-top">
-          <span id="ui-score">GOLD: 0 / 100</span>
-          <span id="ui-time">TIME: 200s</span>
+          <div class="hud-item" id="hud-gold">
+            <span class="hud-icon">💰</span>
+            <span id="ui-score">0 / 100</span>
+          </div>
+          <div class="hud-item" id="hud-time">
+            <span class="hud-icon">⏳</span>
+            <span id="ui-time">200s</span>
+          </div>
           <div class="speed-btns">
             <button class="speed-btn active" data-speed="1">1x</button>
             <button class="speed-btn" data-speed="2">2x</button>
@@ -20,12 +29,23 @@
           </div>
         </div>
         <div class="hud-bottom">
-          <span id="ui-miners">Miners: 50</span>
+          <div class="hud-item" id="hud-miners">
+             <span class="hud-icon">👷</span>
+             <span id="ui-miners">50</span>
+          </div>
         </div>
         <div id="ui-menu" class="overlay">
-           <h1>Miners4k Web</h1>
-           <p>Click to Start!</p>
-           <small>Controls: Keys to Pan, Click to Dig/Build</small>
+           <div class="menu-content">
+             <h1 class="glitch-text" data-text="MINERS 4K">MINERS 4K</h1>
+             <p>A Web Mining Adventure</p>
+             <div class="start-prompt">CLICK TO START</div>
+             <div class="controls-guide">
+               <div class="control-item"><span>ARROWS</span> Move Camera</div>
+               <div class="control-item"><span>WHEEL</span> Zoom In/Out</div>
+               <div class="control-item"><span>L-CLICK</span> Dig Dirt</div>
+               <div class="control-item"><span>R-CLICK</span> Build Dirt</div>
+             </div>
+           </div>
         </div>
       </div>
       <canvas id="gameCanvas" width="1024" height="768"></canvas>

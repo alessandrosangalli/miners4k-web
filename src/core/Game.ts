@@ -1,6 +1,7 @@
 import { World, Material } from './World';
 import { Miner } from '../entities/Miner';
 import { Particle } from '../entities/Particle';
+import { FloatingText } from '../entities/FloatingText';
 import { Renderer, GameState } from '../engine/Renderer';
 import { InputHandler } from '../engine/InputHandler';
 import { SoundManager } from '../engine/SoundManager';
@@ -10,6 +11,7 @@ export class Game {
     public world!: World;
     public miners: Miner[] = [];
     public particles: Particle[] = [];
+    public floatingTexts: FloatingText[] = [];
     public renderer: Renderer;
     public input: InputHandler;
     public sound: SoundManager;
@@ -35,7 +37,6 @@ export class Game {
     private uiMiners!: HTMLElement;
     private uiMenu!: HTMLElement;
 
-    private roundsStartTime: number = 0;
     private minersAlive: number = 0;
 
     constructor(canvas: HTMLCanvasElement) {
@@ -53,7 +54,6 @@ export class Game {
         this.uiMenu.addEventListener('click', () => {
             this.state = GameState.PLAYING;
             this.uiMenu.classList.add('hidden');
-            this.roundsStartTime = performance.now();
         });
 
         // Speed buttons
@@ -80,6 +80,7 @@ export class Game {
         this.world = new World(index);
         this.miners = [];
         this.particles = [];
+        this.floatingTexts = [];
 
         const minersToSpawn = index === 0 ? 50 : (index === 6 ? 800 : index * index * 50);
         for (let i = 0; i < minersToSpawn; i++) {
@@ -190,12 +191,17 @@ export class Game {
                                     if (mat === Material.DIRT || mat === Material.GRASS) {
                                         this.world.setPixel(px, py, World.COLOR_EMPTY, Material.AIR);
                                         dugThisFrame = true;
-                                        if (Math.random() < 0.25) {
-                                            const col = this.world.getPixel(px, py);
-                                            this.spawnParticles(px, py, 1, col);
+                                        if (Math.random() < 0.3) {
+                                             const col = this.world.getPixel(px, py);
+                                             this.spawnParticles(px, py, 1, col, 1.2); 
+                                        }
+                                        // BRIGHT SPARKS (Faíscas)
+                                        if (Math.random() < 0.1) {
+                                            this.spawnParticles(px, py, 1, 0xFFFFFFCC, 2.0); 
                                         }
                                     }
                                 } else if (this.input.mouseButton === 3 || this.input.isKeyPressed('ControlLeft') || this.input.isKeyPressed('ControlRight')) {
+                                    // Build DIRT (Right Click)
                                     if (this.world.getMaterial(px, py) === Material.AIR) {
                                         let br = 1.6 - (Math.random() - 0.5) * Math.random() * Math.random() * 0.6;
                                         br *= (1 - py / 6048.0);
@@ -223,13 +229,24 @@ export class Game {
         this.lastMouseWorldY = currentMouseWorldY;
     }
 
-    private spawnParticles(x: number, y: number, count: number, color: number) {
-        if (this.particles.length > 1000) return;
+    private spawnParticles(x: number, y: number, count: number, color: number, speedMult: number = 1.0) {
+        if (this.particles.length > 2000) return;
         for (let i = 0; i < count; i++) {
-            const vx = (Math.random() - 0.5) * 4.0;
-            const vy = (Math.random() - 1.0) * 4.0;
+            const vx = (Math.random() - 0.5) * 4.0 * speedMult;
+            const vy = (Math.random() - 1.0) * 4.0 * speedMult;
             const life = 20 + Math.floor(Math.random() * 20);
-            this.particles.push(new Particle(x, y, vx, vy, color, life));
+            const p = new Particle(x, y, vx, vy, color, life);
+            
+            // Special behaviors
+            if (color === 0xFF888888) { // Smoke
+                p.gravity = -0.05; // Rises
+                p.friction = 0.95;
+            } else if (color === 0xFFFFFFCC) { // Sparks
+                p.gravity = 0.1;
+                p.life = 10 + Math.floor(Math.random() * 10);
+            }
+            
+            this.particles.push(p);
         }
     }
 
@@ -241,6 +258,12 @@ export class Game {
             const p = this.particles[i];
             p.update();
             if (p.isDead()) this.particles.splice(i, 1);
+        }
+
+        for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+            const ft = this.floatingTexts[i];
+            ft.update();
+            if (ft.isDead()) this.floatingTexts.splice(i, 1);
         }
 
         let aliveCount = 0;
@@ -338,6 +361,7 @@ export class Game {
                     m.die();
                     m.x -= m.direction;
                     this.spawnParticles(m.x, m.y, 10, World.COLOR_BLOOD);
+                    this.renderer.setShake(1.0); // Small jolt on death
                 }
                 m.fallDistance = 0;
                 m.jumpVelocity = -1;
@@ -356,11 +380,34 @@ export class Game {
                         }
                     }
 
-                    // Turning logic: 1/10 if hit wall, 1/4000 if walking
-                    const turnProb = hit ? 0.1 : 0.00025;
+                    // --- SMART AI LOGIC V2 ---
+                    let turnProb = hit ? 0.1 : 0.00025;
+
+                    if (m.carryingGold) {
+                        // Se estiver com ouro, NÃO vira aleatoriamente em terreno plano.
+                        // Ele já virou 180 graus no momento em que pegou a pepita.
+                        // Ele só virará de novo se der de cara com uma parede intransponível.
+                        turnProb = hit ? 0.1 : 0.0;
+                    } else {
+                        // Se não tem ouro, usa aquele "olfato" sutil.
+                        for (let i = 0; i < 3; i++) {
+                            const lookDist = 5 + Math.random() * 25;
+                            const lookYOffset = (Math.random() - 0.5) * 10;
+                            const aheadMat = this.world.getMaterial(Math.floor(m.x + m.direction * lookDist), Math.floor(m.y + lookYOffset));
+                            const behindMat = this.world.getMaterial(Math.floor(m.x - m.direction * lookDist), Math.floor(m.y + lookYOffset));
+                            
+                            if (aheadMat === Material.GOLD_RAW) {
+                                turnProb = hit ? 0.02 : 0.00001;
+                                break;
+                            } else if (behindMat === Material.GOLD_RAW) {
+                                turnProb = hit ? 0.2 : 0.02;
+                                break;
+                            }
+                        }
+                    }
+
                     if (Math.random() < turnProb || m.x <= 8 || m.x >= this.world.width - 9) {
                         m.direction *= -1;
-                        // 66% chance to jump when hitting a wall and turning
                         if (hit && Math.random() < 0.66) m.jump();
                     }
                 }
@@ -378,6 +425,7 @@ export class Game {
             this.dropGoldPixels(m.x, m.y - 5);
             this.spawnParticles(m.x, m.y - 4, 8, World.COLOR_GOLD_PIXEL);
             this.sound.play('deposit');
+            this.floatingTexts.push(new FloatingText(m.x, m.y - 10, "+1", "#FFDE00"));
             m.direction *= -1;
         }
 
@@ -405,7 +453,9 @@ export class Game {
                             }
                             m.carryingGold = true;
                             m.direction *= -1;
-                            this.spawnParticles(px, py, 12, World.COLOR_GOLD_PIXEL);
+                            // LOTS OF SPARKS ON COLLECTION
+                            this.spawnParticles(px, py, 12, World.COLOR_GOLD_PIXEL, 1.5);
+                            this.spawnParticles(px, py, 8, 0xFFFFFFCC, 2.5); // Fast white sparks
                             this.sound.play('gold');
                         }
                     }
@@ -426,6 +476,9 @@ export class Game {
                 }
             }
         }
+        this.renderer.setShake(5.0); // Big explosion shake
+        this.spawnParticles(centerX, centerY, 30, 0xFF888888, 0.5); // Smoke
+        this.spawnParticles(centerX, centerY, 20, 0xFFFFFFCC, 2.5); // Sparks
         this.sound.play('explode');
     }
 
@@ -446,7 +499,7 @@ export class Game {
     }
 
     private render() {
-        this.renderer.render(this.world, this.miners, this.particles, Math.floor(this.cameraX), Math.floor(this.cameraY), this.zoomFactor);
+        this.renderer.render(this.world, this.miners, this.particles, this.floatingTexts, Math.floor(this.cameraX), Math.floor(this.cameraY), this.zoomFactor);
         this.renderer.present(this.ctx, this.canvas.width, this.canvas.height);
         
         // Update DOM HUD safely outside the expensive loop
@@ -455,11 +508,11 @@ export class Game {
 
         this.uiScore.innerText = `GOLD: ${this.score} / ${this.world.targetGold}`;
         if (this.state === GameState.PLAYING) {
-            this.uiTime.innerText = `TIME: ${timeLeft}s`;
-            if (timeLeft < 30 && timeLeft % 2 === 0) {
-                this.uiTime.style.color = '#FF1111';
+            this.uiTime.innerText = `${timeLeft}s`;
+            if (timeLeft < 30) {
+                this.uiTime.parentElement?.classList.add('low-time');
             } else {
-                this.uiTime.style.color = '#FFDE00';
+                this.uiTime.parentElement?.classList.remove('low-time');
             }
         }
         this.uiMiners.innerText = `MINERS: ${this.minersAlive}`;

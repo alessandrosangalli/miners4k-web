@@ -118,7 +118,7 @@ export class World {
                     let b = Math.floor(51 * br);
                     let mat = Material.DIRT;
                     if (y < h[x] + 4) {
-                        r = Math.floor(44 * br); g = Math.floor(148 * br); b = Math.floor(49 * br);
+                        r = Math.floor(60 * br); g = Math.floor(190 * br); b = Math.floor(40 * br);
                         mat = Material.GRASS;
                         if (x < 88 || x > this.width - 89) { r = g = b; mat = Material.BEDROCK; }
                     }
