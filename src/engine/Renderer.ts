@@ -22,30 +22,37 @@ export class Renderer {
         this.pixels = this.imageData.data;
     }
 
-    public render(world: World, miners: Miner[], particles: Particle[], cameraX: number, cameraY: number): void {
-        this.renderSky(cameraX, cameraY);
+    public render(world: World, miners: Miner[], particles: Particle[], cameraX: number, cameraY: number, zoomFactor: number = 1.0): void {
+        this.renderSky(cameraX, cameraY, zoomFactor);
         const worldPixels = world.pixels;
 
         // 1. Pre-calculate Light Map (320x240)
         const lightMap = new Float32Array(Renderer.VIEW_WIDTH * Renderer.VIEW_HEIGHT);
         for (let y = 0; y < Renderer.VIEW_HEIGHT; y++) {
-            const baseBrightness = Math.max(0.4, 1.0 - (cameraY + y) / (world.height - 200) * 0.9);
+            const wy = cameraY + y * zoomFactor;
+            const baseBrightness = Math.max(0.4, 1.0 - wy / (world.height - 200) * 0.9);
             for (let x = 0; x < Renderer.VIEW_WIDTH; x++) {
                 lightMap[x + y * Renderer.VIEW_WIDTH] = baseBrightness;
             }
         }
 
+        const viewW = Renderer.VIEW_WIDTH * zoomFactor;
+        const viewH = Renderer.VIEW_HEIGHT * zoomFactor;
+
         for (const m of miners) {
-            if (m.x < cameraX - 10 || m.x > cameraX + Renderer.VIEW_WIDTH + 10 || m.y < cameraY - 10 || m.y > cameraY + Renderer.VIEW_HEIGHT + 10) continue;
-            let mx = m.x - cameraX;
-            let my = m.y - cameraY;
-            for (let dy = -30; dy <= 30; dy++) {
-                for (let dx = -30; dx <= 30; dx++) {
-                    let lx = mx + dx, ly = my + dy;
+            if (m.x < cameraX - 10 || m.x > cameraX + viewW + 10 || m.y < cameraY - 10 || m.y > cameraY + viewH + 10) continue;
+            let mx = (m.x - cameraX) / zoomFactor;
+            let my = (m.y - cameraY) / zoomFactor;
+            let scaledRadius = 30 / zoomFactor;
+            let scaledRadiusSq = scaledRadius * scaledRadius;
+            
+            for (let dy = -Math.ceil(scaledRadius); dy <= scaledRadius; dy++) {
+                for (let dx = -Math.ceil(scaledRadius); dx <= scaledRadius; dx++) {
+                    let lx = Math.floor(mx + dx), ly = Math.floor(my + dy);
                     if (lx >= 0 && ly >= 0 && lx < Renderer.VIEW_WIDTH && ly < Renderer.VIEW_HEIGHT) {
                         let distSq = dx * dx + dy * dy;
-                        if (distSq < 900) {
-                            let light = 1.0 - Math.sqrt(distSq) / 30.0;
+                        if (distSq < scaledRadiusSq) {
+                            let light = 1.0 - Math.sqrt(distSq) / scaledRadius;
                             let lidx = lx + ly * Renderer.VIEW_WIDTH;
                             lightMap[lidx] = Math.max(lightMap[lidx], lightMap[lidx] + (1.0 - lightMap[lidx]) * light);
                         }
@@ -56,24 +63,27 @@ export class Renderer {
 
         // 2. Pass 1: Draw Terrain
         for (let y = 0; y < Renderer.VIEW_HEIGHT; y++) {
-            const wy = cameraY + y;
+            const wy = Math.floor(cameraY + y * zoomFactor);
             for (let x = 0; x < Renderer.VIEW_WIDTH; x++) {
-                const wx = cameraX + x;
+                const wx = Math.floor(cameraX + x * zoomFactor);
                 const idx = (x + y * Renderer.VIEW_WIDTH) * 4;
 
                 if (wx >= 0 && wy >= 0 && wx < 1024 && wy < 2048) {
                     const col = worldPixels[wx | (wy << 10)];
                     const brightness = lightMap[x + y * Renderer.VIEW_WIDTH];
 
-                    if (col !== 0 && col !== 0x00000000) {
+                    if (col !== 0 && col !== World.COLOR_EMPTY) {
                         this.pixels[idx] = ((col >> 16) & 0xff) * brightness; // R
                         this.pixels[idx + 1] = ((col >> 8) & 0xff) * brightness; // G
                         this.pixels[idx + 2] = (col & 0xff) * brightness; // B
-                        // pixels[idx + 3] remains 255 (Sky sets it)
+                        this.pixels[idx + 3] = 255;
                     } else if (wy > world.getHeightAt(wx) + 3) {
                         this.pixels[idx] = 0x2b * brightness; // R
                         this.pixels[idx + 1] = 0x1e * brightness; // G
                         this.pixels[idx + 2] = 0x15 * brightness; // B
+                        this.pixels[idx + 3] = 255;
+                    } else {
+                        this.pixels[idx + 3] = 255;
                     }
                 }
             }
@@ -82,7 +92,7 @@ export class Renderer {
         // 3. Pass 2: Draw Miners
         for (const m of miners) {
             if (!m.isAlive()) continue;
-            if (m.x < cameraX - 10 || m.x > cameraX + Renderer.VIEW_WIDTH + 10 || m.y < cameraY - 10 || m.y > cameraY + Renderer.VIEW_HEIGHT + 10) continue;
+            if (m.x < cameraX - 10 || m.x > cameraX + viewW + 10 || m.y < cameraY - 10 || m.y > cameraY + viewH + 10) continue;
 
             const frame = m.getAnimationFrame();
             for (let dy = -8; dy <= 1; dy++) {
@@ -91,7 +101,7 @@ export class Renderer {
                     const wx = m.x + dx;
                     const charIdx = (dx * m.direction + 3) + (dy + 8) * 7 + frame * 70;
                     const pChar = World.SPRITES[charIdx];
-                    if (pChar !== ' ') {
+                    if (pChar && pChar !== ' ') {
                         let mCol = 0x0000FF; // Clothes
                         if (pChar === '!') mCol = 0x00FF00;
                         else if (pChar === 'o') mCol = 0xDB8EAF;
@@ -100,14 +110,15 @@ export class Renderer {
                             else continue;
                         } else if (pChar === '#') mCol = 0xFF0000;
 
-                        const lX = wx - cameraX;
-                        const lY = wy - cameraY;
+                        const lX = Math.floor((wx - cameraX) / zoomFactor);
+                        const lY = Math.floor((wy - cameraY) / zoomFactor);
                         if (lX >= 0 && lX < Renderer.VIEW_WIDTH && lY >= 0 && lY < Renderer.VIEW_HEIGHT) {
                             const br = lightMap[lX + lY * Renderer.VIEW_WIDTH];
                             const idx = (lX + lY * Renderer.VIEW_WIDTH) * 4;
                             this.pixels[idx] = ((mCol >> 16) & 0xff) * br;
                             this.pixels[idx + 1] = ((mCol >> 8) & 0xff) * br;
                             this.pixels[idx + 2] = (mCol & 0xff) * br;
+                            this.pixels[idx + 3] = 255;
                         }
                     }
                 }
@@ -116,8 +127,8 @@ export class Renderer {
 
         // 4. Pass 3: Particles
         for (const p of particles) {
-            const sx = Math.floor(p.x - cameraX);
-            const sy = Math.floor(p.y - cameraY);
+            const sx = Math.floor((p.x - cameraX) / zoomFactor);
+            const sy = Math.floor((p.y - cameraY) / zoomFactor);
             if (sx >= 0 && sy >= 0 && sx < Renderer.VIEW_WIDTH && sy < Renderer.VIEW_HEIGHT) {
                 const idx = (sx + sy * Renderer.VIEW_WIDTH) * 4;
                 this.pixels[idx] = (p.color >> 16) & 0xff;
@@ -130,9 +141,10 @@ export class Renderer {
         this.offscreenCtx.putImageData(this.imageData, 0, 0);
     }
 
-    private renderSky(cameraX: number, cameraY: number): void {
+    private renderSky(cameraX: number, cameraY: number, zoomFactor: number): void {
         for (let y = 0; y < Renderer.VIEW_HEIGHT; y++) {
-            const ratio = Math.max(0, Math.min(1.0, (cameraY + y) / 1000.0));
+            const wy = cameraY + y * zoomFactor;
+            const ratio = Math.max(0, Math.min(1.0, wy / 1000.0));
             const r = Math.floor(135 * (1 - ratio) + 25 * ratio);
             const g = Math.floor(206 * (1 - ratio) + 25 * ratio);
             const b = Math.floor(235 * (1 - ratio) + 112 * ratio);

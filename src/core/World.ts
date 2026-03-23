@@ -1,3 +1,14 @@
+export enum Material {
+    AIR = 0,
+    DIRT = 1,
+    ROCK = 2,
+    GOLD_RAW = 3,
+    GOLD_SAFE = 4,
+    SLIME = 5,
+    GRASS = 6,
+    BEDROCK = 7
+}
+
 export class World {
     public static readonly COLOR_EMPTY = 0x00000000;
     public static readonly COLOR_GOLD_CHUNK = 0xFFFFFF00;
@@ -49,6 +60,7 @@ export class World {
     public width: number;
     public height: number;
     public pixels: Int32Array;
+    public materials: Uint8Array;
     public heightmap: Int32Array;
     public targetGold: number;
     public timeLimit: number;
@@ -59,6 +71,7 @@ export class World {
         if (levelIndex === 6) this.height = 2048;
 
         this.pixels = new Int32Array(1024 * 2048);
+        this.materials = new Uint8Array(1024 * 2048);
         this.heightmap = new Int32Array(1024);
         
         this.targetGold = levelIndex * 500;
@@ -95,17 +108,22 @@ export class World {
                 if (x < 8 || x >= this.width - 8 || y >= this.height - 8) {
                     const c = Math.floor(180 * br);
                     this.pixels[i] = 0xff000000 | (c << 16) | (c << 8) | c;
+                    this.materials[i] = Material.BEDROCK;
                 } else if (y < h[x]) {
                     this.pixels[i] = World.COLOR_EMPTY;
+                    this.materials[i] = Material.AIR;
                 } else {
                     let r = Math.floor(111 * br);
                     let g = Math.floor(92 * br);
                     let b = Math.floor(51 * br);
+                    let mat = Material.DIRT;
                     if (y < h[x] + 4) {
                         r = Math.floor(44 * br); g = Math.floor(148 * br); b = Math.floor(49 * br);
-                        if (x < 88 || x > this.width - 89) { r = g = b; }
+                        mat = Material.GRASS;
+                        if (x < 88 || x > this.width - 89) { r = g = b; mat = Material.BEDROCK; }
                     }
                     this.pixels[i] = 0xff000000 | (r << 16) | (g << 8) | b;
+                    this.materials[i] = mat;
                 }
             }
         }
@@ -139,13 +157,20 @@ export class World {
                     const d = (xx - x) * (xx - x) + (yy - y) * (yy - y);
                     if (xx >= 0 && yy >= 0 && xx < 1024 && yy < 2048 && d < size * size) {
                         if (this.pixels[xx | (yy << 10)] !== World.COLOR_EMPTY) {
-                            if (type === 0) this.pixels[xx | (yy << 10)] = 0xffffff00;
+                            if (type === 0) {
+                                this.pixels[xx | (yy << 10)] = 0xffffff00;
+                                this.materials[xx | (yy << 10)] = Material.GOLD_RAW;
+                            }
                             else if (type === 1) {
                                 const d2 = Math.floor(((xx - x + size / 3.0) * (xx - x + size / 3.0) / size / size + (yy - y + size / 3.0) * (yy - y + size / 3.0) / size / size) * 64);
                                 const c = 200 - d2 - Math.floor(Math.random() * 16);
                                 this.pixels[xx | (yy << 10)] = 0xff000000 | (c << 16) | (c << 8) | c;
+                                this.materials[xx | (yy << 10)] = Material.ROCK;
                             }
-                            else if (type === 2) this.pixels[xx | (yy << 10)] = 0xff00ff00;
+                            else if (type === 2) {
+                                this.pixels[xx | (yy << 10)] = 0xff00ff00;
+                                this.materials[xx | (yy << 10)] = Material.SLIME;
+                            }
                         }
                     }
                 }
@@ -153,9 +178,11 @@ export class World {
         }
     }
 
-    public setPixel(x: number, y: number, color: number): void {
+    public setPixel(x: number, y: number, color: number, material: Material = Material.AIR): void {
         if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-            this.pixels[x | (y << 10)] = color;
+            const idx = x | (y << 10);
+            this.pixels[idx] = color;
+            this.materials[idx] = material;
         }
     }
 
@@ -164,6 +191,13 @@ export class World {
             return this.pixels[x | (y << 10)];
         }
         return World.COLOR_EMPTY;
+    }
+
+    public getMaterial(x: number, y: number): Material {
+        if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+            return this.materials[x | (y << 10)];
+        }
+        return Material.AIR;
     }
 
     public getHeightAt(x: number): number {

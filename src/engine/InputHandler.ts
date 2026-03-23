@@ -29,6 +29,11 @@ export class InputHandler {
         });
 
         canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        canvas.addEventListener('wheel', (e) => {
+            this.mouseWheelRotation = e.deltaY;
+            e.preventDefault();
+        }, { passive: false });
     }
 
     public isKeyPressed(code: string): boolean {

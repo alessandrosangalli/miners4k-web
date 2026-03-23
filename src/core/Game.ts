@@ -1,4 +1,4 @@
-import { World } from './World';
+import { World, Material } from './World';
 import { Miner } from '../entities/Miner';
 import { Particle } from '../entities/Particle';
 import { Renderer, GameState } from '../engine/Renderer';
@@ -17,6 +17,7 @@ export class Game {
     public currentLevel: number = 0;
     public cameraX: number = 0;
     public cameraY: number = 0;
+    public zoomFactor: number = 1.0;
     
     private lastTick: number = 0;
     private canvas: HTMLCanvasElement;
@@ -78,6 +79,7 @@ export class Game {
         this.input.mouseButton = 0;
         this.score = 0;
         this.minersAlive = minersToSpawn;
+        this.zoomFactor = 1.0;
     }
 
     private run(currentTime: number) {
@@ -102,18 +104,37 @@ export class Game {
     private handleInput() {
         if (this.state === GameState.PLAYING) {
             // Camera Pan
-            if (this.input.isKeyPressed('ArrowLeft') && this.cameraX > 8) this.cameraX -= 8;
-            if (this.input.isKeyPressed('ArrowRight') && this.cameraX < this.world.width - Renderer.VIEW_WIDTH) this.cameraX += 8;
-            if (this.input.isKeyPressed('ArrowUp') && this.cameraY > 8) this.cameraY -= 8;
-            if (this.input.isKeyPressed('ArrowDown') && this.cameraY < this.world.height - Renderer.VIEW_HEIGHT) this.cameraY += 8;
+            // Camera Pan speed scales with zoom
+            const panSpeed = Math.floor(8 * this.zoomFactor);
+            if (this.input.isKeyPressed('ArrowLeft') && this.cameraX > 8) this.cameraX -= panSpeed;
+            if (this.input.isKeyPressed('ArrowRight') && this.cameraX < this.world.width - Renderer.VIEW_WIDTH * this.zoomFactor) this.cameraX += panSpeed;
+            if (this.input.isKeyPressed('ArrowUp') && this.cameraY > 8) this.cameraY -= panSpeed;
+            if (this.input.isKeyPressed('ArrowDown') && this.cameraY < this.world.height - Renderer.VIEW_HEIGHT * this.zoomFactor) this.cameraY += panSpeed;
+
+            // Zoom Control
+            if (this.input.mouseWheelRotation !== 0) {
+                const oldZoom = this.zoomFactor;
+                if (this.input.mouseWheelRotation > 0) this.zoomFactor *= 1.1;
+                else this.zoomFactor /= 1.1;
+
+                this.zoomFactor = Math.max(0.5, Math.min(4.0, this.zoomFactor));
+                
+                // Adjust camera to zoom relative to center of view
+                const dw = Renderer.VIEW_WIDTH * (oldZoom - this.zoomFactor);
+                const dh = Renderer.VIEW_HEIGHT * (oldZoom - this.zoomFactor);
+                this.cameraX += dw / 2;
+                this.cameraY += dh / 2;
+
+                this.input.mouseWheelRotation = 0;
+            }
 
             this.handleUserMining();
         }
     }
 
     private handleUserMining() {
-        const currentMouseWorldX = Math.floor(this.input.xMouse * Renderer.VIEW_WIDTH) + this.cameraX;
-        const currentMouseWorldY = Math.floor(this.input.yMouse * Renderer.VIEW_HEIGHT) + this.cameraY;
+        const currentMouseWorldX = Math.floor(this.input.xMouse * Renderer.VIEW_WIDTH * this.zoomFactor) + this.cameraX;
+        const currentMouseWorldY = Math.floor(this.input.yMouse * Renderer.VIEW_HEIGHT * this.zoomFactor) + this.cameraY;
 
         if (this.input.mouseButton > 0) {
             const dx = currentMouseWorldX - this.lastMouseWorldX;
@@ -132,21 +153,26 @@ export class Game {
                             const px = mx + xx;
                             const py = my + yy;
                             if (px >= 0 && py >= 0 && px < 1024 && py < 2048) {
-                                if (this.input.mouseButton === 3 || this.input.isKeyPressed('ControlLeft') || this.input.isKeyPressed('ControlRight')) {
-                                    const col = this.world.getPixel(px, py);
-                                    if (col !== 0 && col !== World.COLOR_EMPTY) {
-                                        this.world.setPixel(px, py, World.COLOR_EMPTY);
+                                if (this.input.mouseButton === 1 && !this.input.isKeyPressed('ControlLeft') && !this.input.isKeyPressed('ControlRight')) {
+                                    const mat = this.world.getMaterial(px, py);
+                                    
+                                    // Professional check: DIRT and GRASS are destructible
+                                    if (mat === Material.DIRT || mat === Material.GRASS) {
+                                        this.world.setPixel(px, py, World.COLOR_EMPTY, Material.AIR);
                                         dugThisFrame = true;
-                                        if (Math.random() < 0.25) this.spawnParticles(px, py, 1, col);
+                                        if (Math.random() < 0.25) {
+                                            const col = this.world.getPixel(px, py);
+                                            this.spawnParticles(px, py, 1, col);
+                                        }
                                     }
-                                } else {
-                                    if (this.world.getPixel(px, py) === World.COLOR_EMPTY) {
+                                } else if (this.input.mouseButton === 3 || this.input.isKeyPressed('ControlLeft') || this.input.isKeyPressed('ControlRight')) {
+                                    if (this.world.getMaterial(px, py) === Material.AIR) {
                                         let br = 1.6 - (Math.random() - 0.5) * Math.random() * Math.random() * 0.6;
                                         br *= (1 - py / 6048.0);
                                         const r = Math.floor(111 * br);
                                         const g = Math.floor(92 * br);
                                         const b = Math.floor(51 * br);
-                                        this.world.setPixel(px, py, 0xff000000 | (r << 16) | (g << 8) | b);
+                                        this.world.setPixel(px, py, 0xff000000 | (r << 16) | (g << 8) | b, Material.DIRT);
                                     }
                                 }
                             }
@@ -242,42 +268,68 @@ export class Game {
             return;
         }
 
-        if (m.y > 0 && this.world.getPixel(m.x, m.y) === World.COLOR_GOLD_CHUNK) m.y--;
+        // 1. If inside gold (any type), move up (pushed out)
+        const currentMat = this.world.getMaterial(m.x, m.y);
+        if (m.y > 0 && (currentMat === Material.GOLD_RAW || currentMat === Material.GOLD_SAFE)) {
+            m.y--;
+        }
 
-        if (m.y < 4 || this.world.getPixel(m.x, m.y + 1) === World.COLOR_EMPTY) {
-            for (let j = 0; j < 2; j++) {
-                if (m.y < 4 || this.world.getPixel(m.x, m.y + 1) === World.COLOR_EMPTY) {
-                    m.y++;
-                    m.jumpVelocity = 0;
-                    m.fallDistance++;
-                }
+        // 2. Jumping Arc / Movement
+        if (m.jumpVelocity > 1 && m.y > 1) {
+            const nextX = m.x + m.direction;
+            const nextY = m.y - Math.floor(m.jumpVelocity / 8);
+            if (this.world.getMaterial(nextX, nextY) === Material.AIR) {
+                m.x = nextX;
+                m.y = nextY;
+                m.animate();
+                m.jumpVelocity--;
+            } else {
+                m.jumpVelocity = 0; // Hit head/wall
             }
         } else {
-            if (m.fallDistance > 100) {
-                m.die();
-                m.x -= m.direction;
-                this.spawnParticles(m.x, m.y, 10, World.COLOR_BLOOD);
-            }
-            m.fallDistance = 0;
-            m.jumpVelocity = -1;
-
-            if (Math.random() < 0.05) {
-                let hit = true;
-                const nextX = m.x + m.direction;
-                if (nextX <= 4 || nextX >= this.world.width - 5) {
-                    m.direction *= -1;
+            // 3. Falling check
+            if (m.y < 4 || this.world.getMaterial(m.x, m.y + 1) === Material.AIR) {
+                // Original: 66% chance to start a jump if about to fall and on ground
+                if (m.jumpVelocity === -1 && Math.random() < 0.66) {
+                    m.jump();
                 } else {
+                    for (let j = 0; j < 2; j++) {
+                        if (m.y < 4 || this.world.getMaterial(m.x, m.y + 1) === Material.AIR) {
+                            m.y++;
+                            m.jumpVelocity = 0;
+                            m.fallDistance++;
+                        }
+                    }
+                }
+            } else {
+                // 4. Grounded logic
+                if (m.fallDistance > 100) {
+                    m.die();
+                    m.x -= m.direction;
+                    this.spawnParticles(m.x, m.y, 10, World.COLOR_BLOOD);
+                }
+                m.fallDistance = 0;
+                m.jumpVelocity = -1;
+
+                // 5. Normal Horizontal Movement (95% chance to move per tick)
+                if (Math.random() < 0.95) {
+                    let hit = true;
+                    // Original: step up 4 or down 2
                     for (let dy = 2; dy >= -4; dy--) {
-                        if (this.world.getPixel(nextX, m.y + dy) === World.COLOR_EMPTY) {
-                            m.x = nextX;
+                        if (this.world.getMaterial(m.x + m.direction, m.y + dy) === Material.AIR) {
+                            m.x += m.direction;
                             m.y += dy;
                             m.animate();
                             hit = false;
                             break;
                         }
                     }
-                    if (Math.random() < (hit ? 0.1 : 0.00025)) {
+
+                    // Turning logic: 1/10 if hit wall, 1/4000 if walking
+                    const turnProb = hit ? 0.1 : 0.00025;
+                    if (Math.random() < turnProb || m.x <= 8 || m.x >= this.world.width - 9) {
                         m.direction *= -1;
+                        // 66% chance to jump when hitting a wall and turning
                         if (hit && Math.random() < 0.66) m.jump();
                     }
                 }
@@ -305,18 +357,18 @@ export class Game {
                 if (px >= 0 && py >= 0 && px < this.world.width && py < this.world.height) {
                     const charIdx: number = (xx + 3) + (yy + 8) * 7 + m.getAnimationFrame() * 70;
                     if (World.SPRITES[charIdx] !== ' ') {
-                        let col = this.world.getPixel(px, py);
-                        if (col === World.COLOR_SLIME_PIXEL) {
+                        const mat = this.world.getMaterial(px, py);
+                        if (mat === Material.SLIME) {
                             m.die();
                             this.explode(m.x, m.y);
                             this.spawnParticles(m.x, m.y, 20, World.COLOR_SLIME_PIXEL);
                             this.sound.play('death');
                         }
-                        if (!m.carryingGold && col === World.COLOR_GOLD_CHUNK) {
+                        if (!m.carryingGold && mat === Material.GOLD_RAW) {
                             for (let xxx = -1; xxx <= 1; xxx++) {
                                 for (let yyy = -1; yyy <= 1; yyy++) {
-                                    if (this.world.getPixel(px + xxx, py + yyy) === World.COLOR_GOLD_CHUNK) {
-                                        this.world.setPixel(px + xxx, py + yyy, World.COLOR_EMPTY);
+                                    if (this.world.getMaterial(px + xxx, py + yyy) === Material.GOLD_RAW) {
+                                        this.world.setPixel(px + xxx, py + yyy, World.COLOR_EMPTY, Material.AIR);
                                     }
                                 }
                             }
@@ -339,7 +391,7 @@ export class Game {
                 const px = dx + centerX;
                 const py = dy + centerY - 4;
                 if (px >= 4 && py >= 4 && px < this.world.width - 4 && py < this.world.height - 4 && distSq < s * s) {
-                    this.world.setPixel(px, py, World.COLOR_EMPTY);
+                    this.world.setPixel(px, py, World.COLOR_EMPTY, Material.AIR);
                 }
             }
         }
@@ -351,19 +403,19 @@ export class Game {
             let xx = x, yy = y;
             let done = false;
             while (!done) {
-                if (this.world.getPixel(xx, yy + 1) === World.COLOR_EMPTY) yy++;
-                else if (this.world.getPixel(xx - 1, yy + 1) === World.COLOR_EMPTY) { xx--; yy++; }
-                else if (this.world.getPixel(xx + 1, yy + 1) === World.COLOR_EMPTY) { xx++; yy++; }
+                if (this.world.getMaterial(xx, yy + 1) === Material.AIR) yy++;
+                else if (this.world.getMaterial(xx - 1, yy + 1) === Material.AIR) { xx--; yy++; }
+                else if (this.world.getMaterial(xx + 1, yy + 1) === Material.AIR) { xx++; yy++; }
                 else done = true;
             }
             if (yy < this.world.getHeightAt(xx)) {
-                this.world.setPixel(xx, yy, World.COLOR_GOLD_DEPOSIT);
+                this.world.setPixel(xx, yy, World.COLOR_GOLD_DEPOSIT, Material.GOLD_SAFE);
             }
         }
     }
 
     private render() {
-        this.renderer.render(this.world, this.miners, this.particles, Math.floor(this.cameraX), Math.floor(this.cameraY));
+        this.renderer.render(this.world, this.miners, this.particles, Math.floor(this.cameraX), Math.floor(this.cameraY), this.zoomFactor);
         this.renderer.present(this.ctx, this.canvas.width, this.canvas.height);
         
         // Update DOM HUD safely outside the expensive loop
