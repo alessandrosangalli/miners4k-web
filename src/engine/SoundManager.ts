@@ -1,0 +1,82 @@
+export class SoundManager {
+    private ctx: AudioContext | null = null;
+    public isMuted: boolean = false;
+    public isPaused: boolean = false;
+
+    constructor() {
+        // Initialize on first user interaction to bypass browser autoplay policies
+        const initAudio = () => {
+            if (!this.ctx) {
+                this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            }
+            window.removeEventListener('click', initAudio);
+            window.removeEventListener('keydown', initAudio);
+        };
+        window.addEventListener('click', initAudio);
+        window.addEventListener('keydown', initAudio);
+    }
+
+    public play(type: 'dig' | 'gold' | 'deposit' | 'explode' | 'death') {
+        if (!this.ctx || this.isMuted || this.isPaused) return;
+
+        const time = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        // Procedural retro-sound generation!
+        switch (type) {
+            case 'dig':
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, time);
+                osc.frequency.exponentialRampToValueAtTime(50, time + 0.05);
+                gain.gain.setValueAtTime(0.2, time);
+                gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
+                osc.start(time);
+                osc.stop(time + 0.05);
+                break;
+            case 'gold':
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, time);
+                osc.frequency.setTargetAtTime(1200, time, 0.1);
+                gain.gain.setValueAtTime(0.3, time);
+                gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+                osc.start(time);
+                osc.stop(time + 0.2);
+                break;
+            case 'deposit':
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(400, time);
+                osc.frequency.setValueAtTime(600, time + 0.1);
+                gain.gain.setValueAtTime(0.3, time);
+                gain.gain.linearRampToValueAtTime(0, time + 0.2);
+                osc.start(time);
+                osc.stop(time + 0.2);
+                break;
+            case 'explode':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, time);
+                osc.frequency.exponentialRampToValueAtTime(10, time + 0.3);
+                gain.gain.setValueAtTime(0.5, time);
+                gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+                osc.start(time);
+                osc.stop(time + 0.3);
+                break;
+            case 'death':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, time);
+                osc.frequency.exponentialRampToValueAtTime(50, time + 0.15);
+                gain.gain.setValueAtTime(0.4, time);
+                gain.gain.linearRampToValueAtTime(0, time + 0.15);
+                osc.start(time);
+                osc.stop(time + 0.15);
+                break;
+        }
+    }
+
+    public startAmbience() {
+        // We skip continuous ambience for now to keep the code simpler and less annoying
+    }
+}

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Miners4k Web Improved</title>
+    <link rel="stylesheet" href="/src/style.css">
+  </head>
+  <body>
+    <div id="app">
+      <div id="ui-layer">
+        <div class="hud-top">
+          <span id="ui-score">Gold: 0 / 100</span>
+          <span id="ui-time">Time: 120s</span>
+        </div>
+        <div class="hud-bottom">
+          <span id="ui-miners">Miners: 50</span>
+        </div>
+        <div id="ui-menu" class="overlay">
+           <h1>Miners4k Web</h1>
+           <p>Click to Start!</p>
+           <small>Controls: Keys to Pan, Click to Dig/Build</small>
+        </div>
+      </div>
+      <canvas id="gameCanvas" width="1024" height="768"></canvas>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
