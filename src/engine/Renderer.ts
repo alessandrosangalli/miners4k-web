@@ -23,16 +23,23 @@ export class Renderer {
     }
 
     public render(world: World, miners: Miner[], particles: Particle[], cameraX: number, cameraY: number, zoomFactor: number = 1.0): void {
-        this.renderSky(cameraX, cameraY, zoomFactor);
+        this.renderSky(cameraY, zoomFactor);
         const worldPixels = world.pixels;
 
         // 1. Pre-calculate Light Map (320x240)
         const lightMap = new Float32Array(Renderer.VIEW_WIDTH * Renderer.VIEW_HEIGHT);
         for (let y = 0; y < Renderer.VIEW_HEIGHT; y++) {
             const wy = cameraY + y * zoomFactor;
-            const baseBrightness = Math.max(0.4, 1.0 - wy / (world.height - 200) * 0.9);
+            // Day light: 1.0 at surface, down to 0.4 deep in cave
+            const ratio = Math.max(0, Math.min(1.0, wy / (world.height * 0.8)));
+            const baseBrightness = 1.0 * (1.0 - ratio) + 0.4 * ratio;
+            
             for (let x = 0; x < Renderer.VIEW_WIDTH; x++) {
-                lightMap[x + y * Renderer.VIEW_WIDTH] = baseBrightness;
+                // Subtle vignette at the absolute edges
+                const dx = (x / Renderer.VIEW_WIDTH) - 0.5;
+                const dy = (y / Renderer.VIEW_HEIGHT) - 0.5;
+                const vign = 1.0 - (dx * dx + dy * dy) * 0.8;
+                lightMap[x + y * Renderer.VIEW_WIDTH] = baseBrightness * Math.max(0.7, vign);
             }
         }
 
@@ -40,21 +47,46 @@ export class Renderer {
         const viewH = Renderer.VIEW_HEIGHT * zoomFactor;
 
         for (const m of miners) {
-            if (m.x < cameraX - 10 || m.x > cameraX + viewW + 10 || m.y < cameraY - 10 || m.y > cameraY + viewH + 10) continue;
-            let mx = (m.x - cameraX) / zoomFactor;
-            let my = (m.y - cameraY) / zoomFactor;
-            let scaledRadius = 30 / zoomFactor;
-            let scaledRadiusSq = scaledRadius * scaledRadius;
+            if (!m.isAlive()) continue;
+            if (m.x < cameraX - 100 || m.x > cameraX + viewW + 100 || m.y < cameraY - 100 || m.y > cameraY + viewH + 100) continue;
             
-            for (let dy = -Math.ceil(scaledRadius); dy <= scaledRadius; dy++) {
-                for (let dx = -Math.ceil(scaledRadius); dx <= scaledRadius; dx++) {
+            // Headlamp position (slightly above center of miner)
+            let mx = (m.x - cameraX) / zoomFactor;
+            let my = (m.y - cameraY - 4) / zoomFactor;
+            
+            // Concentrated beam radius
+            let scaledRadius = 40 / zoomFactor;
+            let R = Math.ceil(scaledRadius);
+            
+            for (let dy = -R; dy <= R; dy++) {
+                for (let dx = -R; dx <= R; dx++) {
                     let lx = Math.floor(mx + dx), ly = Math.floor(my + dy);
                     if (lx >= 0 && ly >= 0 && lx < Renderer.VIEW_WIDTH && ly < Renderer.VIEW_HEIGHT) {
-                        let distSq = dx * dx + dy * dy;
-                        if (distSq < scaledRadiusSq) {
-                            let light = 1.0 - Math.sqrt(distSq) / scaledRadius;
-                            let lidx = lx + ly * Renderer.VIEW_WIDTH;
-                            lightMap[lidx] = Math.max(lightMap[lidx], lightMap[lidx] + (1.0 - lightMap[lidx]) * light);
+                        let dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (dist < scaledRadius) {
+                            // Conical beam logic
+                            let angleFactor = 0.0;
+                            const forwardValue = dx * m.direction; 
+                            const relDist = dist / scaledRadius;
+                            
+                            if (forwardValue < 0) {
+                                // Minimal glow around head
+                                angleFactor = 0.08 * (1.0 - Math.abs(forwardValue) / (scaledRadius * 0.4));
+                            } else {
+                                // Sharp hotspot beam
+                                // cos(theta) = forwardValue / dist
+                                const cosTheta = forwardValue / (dist + 0.001);
+                                angleFactor = 0.15 + 0.85 * Math.pow(cosTheta, 6); // Narrower cone
+                            }
+                            
+                            // Light intensity formula
+                            let light = (1.0 - relDist) * angleFactor;
+                            if (light > 0) {
+                                let lidx = lx + ly * Renderer.VIEW_WIDTH;
+                                // More intense additive light
+                                lightMap[lidx] = Math.min(1.2, lightMap[lidx] + light * 2.2);
+                            }
                         }
                     }
                 }
@@ -67,25 +99,31 @@ export class Renderer {
             for (let x = 0; x < Renderer.VIEW_WIDTH; x++) {
                 const wx = Math.floor(cameraX + x * zoomFactor);
                 const idx = (x + y * Renderer.VIEW_WIDTH) * 4;
+                const brightness = lightMap[x + y * Renderer.VIEW_WIDTH];
 
-                if (wx >= 0 && wy >= 0 && wx < 1024 && wy < 2048) {
+                if (wx >= 0 && wy >= 0 && wx < world.width && wy < world.height) {
                     const col = worldPixels[wx | (wy << 10)];
-                    const brightness = lightMap[x + y * Renderer.VIEW_WIDTH];
 
                     if (col !== 0 && col !== World.COLOR_EMPTY) {
                         this.pixels[idx] = ((col >> 16) & 0xff) * brightness; // R
                         this.pixels[idx + 1] = ((col >> 8) & 0xff) * brightness; // G
                         this.pixels[idx + 2] = (col & 0xff) * brightness; // B
-                        this.pixels[idx + 3] = 255;
                     } else if (wy > world.getHeightAt(wx) + 3) {
                         this.pixels[idx] = 0x2b * brightness; // R
                         this.pixels[idx + 1] = 0x1e * brightness; // G
                         this.pixels[idx + 2] = 0x15 * brightness; // B
-                        this.pixels[idx + 3] = 255;
-                    } else {
-                        this.pixels[idx + 3] = 255;
+                    }
+                } else if (wy >= 0) {
+                    // Out of bounds - decide if it's bedrock or void
+                    // Use a simple check: if we are below 'sky' level, draw bedrock
+                    const sY = world.getHeightAt(Math.max(0, Math.min(world.width - 1, wx)));
+                    if (wy > sY) {
+                         this.pixels[idx] = 0x1a * brightness; // Dark Bedrock
+                         this.pixels[idx + 1] = 0x1a * brightness;
+                         this.pixels[idx + 2] = 0x1a * brightness;
                     }
                 }
+                this.pixels[idx + 3] = 255; // Always ensure alpha
             }
         }
 
@@ -141,7 +179,7 @@ export class Renderer {
         this.offscreenCtx.putImageData(this.imageData, 0, 0);
     }
 
-    private renderSky(cameraX: number, cameraY: number, zoomFactor: number): void {
+    private renderSky(cameraY: number, zoomFactor: number): void {
         for (let y = 0; y < Renderer.VIEW_HEIGHT; y++) {
             const wy = cameraY + y * zoomFactor;
             const ratio = Math.max(0, Math.min(1.0, wy / 1000.0));

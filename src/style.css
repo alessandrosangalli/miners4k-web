@@ -107,3 +107,33 @@ html, body {
   opacity: 0;
   pointer-events: none;
 }
+
+.speed-btns {
+  display: flex;
+  gap: 10px;
+  pointer-events: auto; /* Buttons must be clickable */
+}
+
+.speed-btn {
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid #FFDE00;
+  color: #FFDE00;
+  padding: 5px 15px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: bold;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+
+.speed-btn:hover {
+  background: #FFDE00;
+  color: black;
+}
+
+.speed-btn.active {
+  background: #FFDE00;
+  color: black;
+  box-shadow: 0 0 10px #FFDE00;
+}

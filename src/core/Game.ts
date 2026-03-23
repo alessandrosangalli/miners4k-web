@@ -19,12 +19,15 @@ export class Game {
     public cameraY: number = 0;
     public zoomFactor: number = 1.0;
     
-    private lastTick: number = 0;
+    private realLastTick: number = 0;
+    private virtualDelta: number = 0;
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
 
     private lastMouseWorldX: number = 0;
     private lastMouseWorldY: number = 0;
+    private gameSpeed: number = 1;
+    private gameTicks: number = 0;
 
     // DOM HUD elements
     private uiScore!: HTMLElement;
@@ -53,10 +56,23 @@ export class Game {
             this.roundsStartTime = performance.now();
         });
 
+        // Speed buttons
+        document.querySelectorAll('.speed-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.target as HTMLElement;
+                const speed = parseInt(target.getAttribute('data-speed') || '1');
+                this.gameSpeed = speed;
+                
+                // Update active state
+                document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+                target.classList.add('active');
+            });
+        });
+
         this.startLevel(0);
         this.state = GameState.MENU;
         
-        this.lastTick = performance.now();
+        this.realLastTick = performance.now();
         requestAnimationFrame((time) => this.run(time));
     }
 
@@ -80,21 +96,23 @@ export class Game {
         this.score = 0;
         this.minersAlive = minersToSpawn;
         this.zoomFactor = 1.0;
+        this.gameTicks = 0;
     }
 
     private run(currentTime: number) {
-        let delta = currentTime - this.lastTick;
+        let realDelta = currentTime - this.realLastTick;
+        this.realLastTick = currentTime;
 
         this.handleInput();
 
         if (this.state === GameState.PLAYING) {
-            while (delta >= 25) {
+            this.virtualDelta += realDelta * this.gameSpeed;
+            while (this.virtualDelta >= 25) {
                 this.update();
-                this.lastTick += 25;
-                delta -= 25;
+                this.virtualDelta -= 25;
             }
         } else {
-            this.lastTick = currentTime;
+            this.virtualDelta = 0;
         }
 
         this.render();
@@ -106,10 +124,22 @@ export class Game {
             // Camera Pan
             // Camera Pan speed scales with zoom
             const panSpeed = Math.floor(8 * this.zoomFactor);
-            if (this.input.isKeyPressed('ArrowLeft') && this.cameraX > 8) this.cameraX -= panSpeed;
-            if (this.input.isKeyPressed('ArrowRight') && this.cameraX < this.world.width - Renderer.VIEW_WIDTH * this.zoomFactor) this.cameraX += panSpeed;
-            if (this.input.isKeyPressed('ArrowUp') && this.cameraY > 8) this.cameraY -= panSpeed;
-            if (this.input.isKeyPressed('ArrowDown') && this.cameraY < this.world.height - Renderer.VIEW_HEIGHT * this.zoomFactor) this.cameraY += panSpeed;
+            const viewW = Renderer.VIEW_WIDTH * this.zoomFactor;
+            const viewH = Renderer.VIEW_HEIGHT * this.zoomFactor;
+
+            if (this.input.isKeyPressed('ArrowLeft')) this.cameraX -= panSpeed;
+            if (this.input.isKeyPressed('ArrowRight')) this.cameraX += panSpeed;
+            if (this.input.isKeyPressed('ArrowUp')) this.cameraY -= panSpeed;
+            if (this.input.isKeyPressed('ArrowDown')) this.cameraY += panSpeed;
+
+            // Clamp camera to world bounds (with some margin for centering)
+            const minX = (viewW > this.world.width) ? (this.world.width - viewW) / 2 : 0;
+            const maxX = (viewW > this.world.width) ? (this.world.width - viewW) / 2 : this.world.width - viewW;
+            const minY = (viewH > this.world.height) ? (this.world.height - viewH) / 2 : 0;
+            const maxY = (viewH > this.world.height) ? (this.world.height - viewH) / 2 : this.world.height - viewH;
+
+            this.cameraX = Math.max(minX, Math.min(maxX, this.cameraX));
+            this.cameraY = Math.max(minY, Math.min(maxY, this.cameraY));
 
             // Zoom Control
             if (this.input.mouseWheelRotation !== 0) {
@@ -204,6 +234,7 @@ export class Game {
     }
 
     private update() {
+        this.gameTicks++;
         this.spreadSlime();
 
         for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -225,7 +256,7 @@ export class Game {
     private checkLevelState() {
         if (this.state !== GameState.PLAYING) return;
 
-        const passedTimeSec = Math.floor((performance.now() - this.roundsStartTime) / 1000);
+        const passedTimeSec = Math.floor(this.gameTicks / 40); // 40 ticks per second (1 tick = 25ms)
         const timeLeft = this.world.timeLimit - passedTimeSec;
 
         // Win condition
@@ -419,7 +450,7 @@ export class Game {
         this.renderer.present(this.ctx, this.canvas.width, this.canvas.height);
         
         // Update DOM HUD safely outside the expensive loop
-        const passedTimeSec = Math.floor((performance.now() - this.roundsStartTime) / 1000);
+        const passedTimeSec = Math.floor(this.gameTicks / 40);
         const timeLeft = Math.max(0, this.world.timeLimit - passedTimeSec);
 
         this.uiScore.innerText = `GOLD: ${this.score} / ${this.world.targetGold}`;
