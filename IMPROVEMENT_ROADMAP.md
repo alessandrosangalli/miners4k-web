@@ -62,6 +62,15 @@ Este documento descreve o plano completo de modernização do jogo Miners4k, tra
 | **Estimativa** | ~1 hora |
 | **Critério de Aceite** | (1) Menu aparece ao iniciar. (2) Enter inicia o jogo. (3) Esc sai. (4) Fundo decorativo visível. |
 
+### 1.5 Botões de Pausa e Reinício de Fase (Mobile)
+| Atributo | Detalhe |
+|----------|---------|
+| **Descrição** | Adicionar botões visíveis na interface do jogo (especialmente no HUD mobile) para **Pausar** e **Reiniciar** o nível atual. No desktop, `P` já pausa, mas no mobile o jogador não tem teclado. O botão de pausa deve abrir uma overlay com opções: **"Continuar"** e **"Reiniciar Fase"**. O reinício deve recarregar o mesmo nível sem voltar ao menu principal. |
+| **Justificativa** | Sem esses botões, jogadores mobile ficam sem saída se quiserem pausar ou tentar o nível de novo. É uma das primeiras coisas que qualquer jogador mobile vai procurar. |
+| **Arquivos Afetados** | `index.html` (botões no HUD), `style.css` (overlay de pausa), `Game.ts` (lógica de pausa e restart) |
+| **Estimativa** | ~1 hora |
+| **Critério de Aceite** | (1) Botão de pausa visível no HUD (ícone ⏸️). (2) Ao pausar, overlay aparece com "Continuar" e "Reiniciar". (3) "Continuar" retoma de onde parou. (4) "Reiniciar" recarrega o nível atual do zero. (5) Funciona no mobile sem teclado. |
+
 ---
 
 ## Fase 2 — Feedback Visual e Atmosfera ✅

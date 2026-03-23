@@ -132,13 +132,37 @@ export class Renderer {
                         this.pixels[idx + 2] = 0x15 * brightness; // B
                     }
                 } else if (wy >= 0) {
-                    // Out of bounds - decide if it's bedrock or void
-                    // Use a simple check: if we are below 'sky' level, draw bedrock
-                    const sY = world.getHeightAt(Math.max(0, Math.min(world.width - 1, wx)));
-                    if (wy > sY) {
-                         this.pixels[idx] = 0x1a * brightness; // Dark Bedrock
-                         this.pixels[idx + 1] = 0x1a * brightness;
-                         this.pixels[idx + 2] = 0x1a * brightness;
+                    // Out of bounds — draw infinite procedural terrain
+                    const edgeX = (wx < 0) ? 0 : world.width - 1;
+                    const horizonY = world.getHeightAt(edgeX);
+                    
+                    if (wy > horizonY) {
+                        // Procedural noise for texture variation (cheap hash)
+                        const hash = ((wx * 73856093) ^ (wy * 19349663)) & 0xFF;
+                        const noise = (hash / 255.0) * 0.3 - 0.15; // -0.15 to +0.15
+                        
+                        // Depth darkening: gets darker as we go deeper
+                        const depth = wy - horizonY;
+                        const depthDarken = Math.max(0.5, 1.0 - depth / 800.0);
+                        const br = (1.0 + noise) * depthDarken;
+                        
+                        if (depth < 4) {
+                            // Grass strip at the surface
+                            const r = Math.floor(60 * br * brightness);
+                            const g = Math.floor(190 * br * brightness);
+                            const b = Math.floor(40 * br * brightness);
+                            this.pixels[idx] = r;
+                            this.pixels[idx + 1] = g;
+                            this.pixels[idx + 2] = b;
+                        } else {
+                            // Dirt with natural variation
+                            const r = Math.floor(111 * br * brightness);
+                            const g = Math.floor(92 * br * brightness);
+                            const b = Math.floor(51 * br * brightness);
+                            this.pixels[idx] = r;
+                            this.pixels[idx + 1] = g;
+                            this.pixels[idx + 2] = b;
+                        }
                     }
                 }
                 this.pixels[idx + 3] = 255; // Always ensure alpha

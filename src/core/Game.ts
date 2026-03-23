@@ -73,6 +73,31 @@ export class Game {
             });
         });
 
+        // Touch Tool buttons
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.currentTarget as HTMLElement;
+                
+                // Fullscreen toggle
+                if (target.id === 'btn-fullscreen') {
+                    if (!document.fullscreenElement) {
+                        document.documentElement.requestFullscreen().catch(err => console.log(err));
+                    } else if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                    return;
+                }
+                
+                // Normal tool mode
+                const mode = target.getAttribute('data-mode') as any;
+                if (mode) {
+                    this.input.touchMode = mode;
+                    document.querySelectorAll('.tool-btn[data-mode]').forEach(b => b.classList.remove('active'));
+                    target.classList.add('active');
+                }
+            });
+        });
+
         // Next Level Button
         document.getElementById('btn-next-level')!.addEventListener('click', () => {
             const overlay = document.getElementById('level-complete-overlay')!;
@@ -160,6 +185,16 @@ export class Game {
             if (this.input.isKeyPressed('ArrowUp') || this.input.isKeyPressed('KeyW')) this.cameraY -= panSpeed;
             if (this.input.isKeyPressed('ArrowDown') || this.input.isKeyPressed('KeyS')) this.cameraY += panSpeed;
 
+            // Touch Pan logic
+            const { dx, dy } = this.input.getAndClearPanDelta();
+            if (dx !== 0 || dy !== 0) {
+                const rect = this.canvas.getBoundingClientRect();
+                const scaleX = viewW / rect.width;
+                const scaleY = viewH / rect.height;
+                this.cameraX -= dx * scaleX;
+                this.cameraY -= dy * scaleY;
+            }
+
             // Clamp camera to world bounds (with some margin for centering)
             const minX = (viewW > this.world.width) ? (this.world.width - viewW) / 2 : 0;
             const maxX = (viewW > this.world.width) ? (this.world.width - viewW) / 2 : this.world.width - viewW;
@@ -172,10 +207,12 @@ export class Game {
             // Zoom Control
             if (this.input.mouseWheelRotation !== 0) {
                 const oldZoom = this.zoomFactor;
-                if (this.input.mouseWheelRotation > 0) this.zoomFactor *= 1.1;
-                else this.zoomFactor /= 1.1;
+                
+                // Scale zoom exponentially based on accumulated rotation
+                const zoomMultiplier = Math.pow(1.1, this.input.mouseWheelRotation / 100);
+                this.zoomFactor *= zoomMultiplier;
 
-                this.zoomFactor = Math.max(0.5, Math.min(4.0, this.zoomFactor));
+                this.zoomFactor = Math.max(0.25, Math.min(4.0, this.zoomFactor)); // let mobile users zoom out slightly more if they want to
                 
                 // Adjust camera to zoom relative to center of view
                 const dw = this.renderer.viewWidth * (oldZoom - this.zoomFactor);
@@ -193,6 +230,12 @@ export class Game {
     private handleUserMining() {
         const currentMouseWorldX = Math.floor(this.input.xMouse * this.renderer.viewWidth * this.zoomFactor) + this.cameraX;
         const currentMouseWorldY = Math.floor(this.input.yMouse * this.renderer.viewHeight * this.zoomFactor) + this.cameraY;
+
+        if (this.input.resetLastPosition) {
+            this.lastMouseWorldX = currentMouseWorldX;
+            this.lastMouseWorldY = currentMouseWorldY;
+            this.input.resetLastPosition = false;
+        }
 
         if (this.input.mouseButton > 0) {
             const dx = currentMouseWorldX - this.lastMouseWorldX;

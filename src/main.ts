@@ -17,3 +17,19 @@ const game = new Game(canvas);
 onResize(); // Initial resize
 
 console.log("Miners4k Web Engine Initialized and Loop Started!");
+
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(reg => {
+            console.log('SW registered!', reg);
+        }).catch(err => {
+            console.log('SW registration failed: ', err);
+        });
+    });
+}
+
+// Prevent double-tap to zoom on mobile
+document.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });

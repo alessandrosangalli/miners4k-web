@@ -56,6 +56,8 @@
 - **Bandeiras/Waypoints**: O jogador coloca bandeiras no mapa e os mineradores se dirigem até elas.
 - **Zonas de Proibição**: Marcar áreas perigosas (próximas ao slime) onde os mineradores não devem entrar.
 - **Sino de Retirada**: Um botão que faz todos os mineradores largarem o que estão fazendo e voltarem para a base.
+- **⏸️ Botão de Pausa** *(pendente — prioridade mobile)*: Botão visível no HUD para pausar o jogo, especialmente necessário no mobile onde não há teclado. Ao pausar, uma overlay deve oferecer as opções "Continuar" e "Reiniciar Fase".
+- **🔄 Botão de Reinício de Fase** *(pendente — prioridade mobile)*: Permite ao jogador reiniciar o nível atual do zero (sem voltar ao menu principal). Útil quando a estratégia deu errado e o jogador quer tentar de novo rapidamente.
 
 ---
 

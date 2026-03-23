@@ -102,26 +102,32 @@ export class World {
         for (let y = 0; y < this.height; y++) {
             for (let x = 0; x < this.width; x++) {
                 const i = x | (y << 10);
-                let br = 1.2 - (Math.random() - 0.5) * Math.random() * Math.random() * 0.6;
-                br *= (1.0 - y / 6048.0);
-
-                if (x < 8 || x >= this.width - 8 || y >= this.height - 8) {
-                    const c = Math.floor(180 * br);
-                    this.pixels[i] = 0xff000000 | (c << 16) | (c << 8) | c;
-                    this.materials[i] = Material.BEDROCK;
-                } else if (y < h[x]) {
+                if (y < h[x]) {
                     this.pixels[i] = World.COLOR_EMPTY;
                     this.materials[i] = Material.AIR;
                 } else {
+                    let br = 1.2 - (Math.random() - 0.5) * Math.random() * Math.random() * 0.6;
+                    br *= (1.0 - y / 6048.0);
+                    
                     let r = Math.floor(111 * br);
                     let g = Math.floor(92 * br);
                     let b = Math.floor(51 * br);
                     let mat = Material.DIRT;
+
                     if (y < h[x] + 4) {
                         r = Math.floor(60 * br); g = Math.floor(190 * br); b = Math.floor(40 * br);
                         mat = Material.GRASS;
-                        if (x < 88 || x > this.width - 89) { r = g = b; mat = Material.BEDROCK; }
+                        // Use a natural stone color for the "edge hills" instead of grey bedrock
+                        if (x < 88 || x > this.width - 89) { 
+                            const grey = Math.floor(100 * br);
+                            r = g = b = grey; 
+                            mat = Material.BEDROCK; 
+                        }
+                    } else if (x < 4 || x >= this.width - 4 || y >= this.height - 4) {
+                        // Very thin invisible bedrock to keep them inside the playable area, but colored as dirt
+                        mat = Material.BEDROCK;
                     }
+
                     this.pixels[i] = 0xff000000 | (r << 16) | (g << 8) | b;
                     this.materials[i] = mat;
                 }

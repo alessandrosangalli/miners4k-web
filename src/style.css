@@ -20,6 +20,9 @@ html, body {
   width: 100vw;
   font-family: var(--font-main);
   background-image: radial-gradient(circle at center, #1a1a1a 0%, #000000 100%);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 #app {
@@ -51,7 +54,8 @@ html, body {
 
 .hud-bar-container {
   position: absolute;
-  top: 20px;
+  top: 0;
+  left: 0;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -140,11 +144,114 @@ html, body {
   border-color: rgba(255, 255, 255, 0.4);
 }
 
-.speed-btn.active {
+.speed-btn.active, .tool-btn.active {
   background: var(--color-gold);
   color: #000;
   border-color: #fff;
   box-shadow: 0 0 15px rgba(255, 222, 0, 0.4);
+}
+
+.tool-btn {
+  background: rgba(40, 40, 40, 0.8);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 4px;
+}
+
+@media (pointer: fine) {
+  .mobile-only {
+    display: none !important;
+  }
+}
+
+@media (pointer: coarse) {
+  /* =============================================
+   * MOBILE HUD: Single bar at top, everything inline
+   * Stats left/center, speed buttons right
+   * No fixed positioning — no collisions
+   * ============================================= */
+
+  .hud-bar-container {
+    top: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .hud-bar {
+    width: 100vw;
+    box-sizing: border-box;
+    border-radius: 0 0 12px 12px;
+    padding: 8px 12px;
+    gap: 8px;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    scale: 1;
+  }
+
+  /* Stats group: shrink to fit */
+  .hud-item {
+    gap: 4px;
+    padding: 2px 0;
+    flex-shrink: 1;
+  }
+
+  .hud-icon { font-size: 16px; line-height: 1; }
+
+  #ui-score, #ui-time, #ui-miners {
+    font-size: 10px;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+
+  /* Dividers: smaller */
+  .hud-divider { height: 18px; margin: 0 2px; }
+
+  /* Speed buttons: small and inline on the right */
+  .speed-btns {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    flex-shrink: 0;
+    position: static;   /* CRITICAL: cancel any fixed/absolute */
+  }
+
+  .speed-btn {
+    padding: 4px 7px;
+    font-size: 9px;
+    border-radius: 4px;
+    min-width: 28px;
+  }
+
+  /* Tool buttons: show dig/build inline, hide fullscreen & drag (gestures replace them) */
+  .mobile-only {
+    display: flex !important;   /* Show by default on mobile */
+    flex-direction: row;
+    gap: 4px;
+    flex-shrink: 0;
+    position: static;
+  }
+
+  /* Hide only the drag+fullscreen buttons specifically */
+  #btn-fullscreen,
+  .tool-btn[data-mode="drag"] {
+    display: none !important;
+  }
+
+  .tool-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: 16px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 /* Overlays & Menus */
@@ -335,4 +442,51 @@ html, body {
   box-shadow: 0 6px 20px rgba(255, 222, 0, 0.5);
   background: #FFF;
 }
+
+/* Portrait Warning Overlay */
+.portrait-warning {
+  display: none;
+  position: absolute;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 9999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: white;
+}
+
+.rotate-icon {
+  font-size: 64px;
+  display: inline-block;
+  animation: rotatePhone 2s infinite ease-in-out;
+}
+
+.portrait-warning h2 {
+  font-family: var(--font-retro);
+  color: var(--color-gold);
+  margin-top: 20px;
+}
+
+.portrait-warning p {
+  font-family: var(--font-retro);
+  font-size: 14px;
+  max-width: 80%;
+  margin: 10px auto;
+  line-height: 1.5;
+}
+
+@keyframes rotatePhone {
+  0% { transform: rotate(0deg); }
+  50% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@media screen and (orientation: portrait) and (max-width: 768px) {
+  .portrait-warning {
+    display: flex;
+  }
+}
+
 
